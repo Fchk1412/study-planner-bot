@@ -21,7 +21,6 @@ store = ExamStore()
 @bot.event
 async def on_ready():
     # For faster testing, sync to a specific guild first
-    # Replace with your server ID or set GUILD_ID in .env for instant sync
     guild_id = os.getenv("GUILD_ID")
     if guild_id:
         guild = discord.Object(id=int(guild_id))
@@ -144,22 +143,27 @@ async def plan(interaction: discord.Interaction):
             filled = int(prep / 10)
             bar = "🟩" * filled + "⬜" * (10 - filled)
             
-            # Urgency emoji based on days until exam
-            days_until = exam['days_until']
-            if days_until <= 0:
-                urgency_emoji = "🔴"
-                urgency_text = "OVERDUE" if days_until < 0 else "TODAY"
-            elif days_until <= 3:
-                urgency_emoji = "🟠"
-                urgency_text = f"{days_until} day{'s' if days_until != 1 else ''} left"
-            elif days_until <= 7:
-                urgency_emoji = "🟡"
-                urgency_text = f"{days_until} days left"
-            else:
-                urgency_emoji = "🟢"
-                urgency_text = f"{days_until} days left"
-            
+            # Get priority score and days until exam
             priority_score = exam['priority_score']
+            days_until = exam['days_until']
+            
+            # Urgency emoji based on priority score
+            if priority_score >= 230:  # Critical priority
+                urgency_emoji = "🔴"
+            elif priority_score >= 150:  # High priority
+                urgency_emoji = "🟠"
+            elif priority_score > 100:  # Medium priority
+                urgency_emoji = "🟡"
+            else:  # Low priority
+                urgency_emoji = "🟢"
+            
+            # Urgency text based on days until exam
+            if days_until <= 0:
+                urgency_text = "OVERDUE" if days_until < 0 else "TODAY"
+            elif days_until == 1:
+                urgency_text = "1 day left"
+            else:
+                urgency_text = f"{days_until} days left"
             
             field_value = (
                 f"📅 **Date:** {exam['date']} ({urgency_text})\n"
