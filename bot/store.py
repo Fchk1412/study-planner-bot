@@ -68,3 +68,50 @@ class ExamStore:
             )
             conn.commit()
             return cur.rowcount > 0
+    
+    def get_priority_queue(self, user_id: int):
+        """Get exams sorted by priority (urgency + preparation level)"""
+        exams = self.list_exams(user_id)
+        today = datetime.now().date()
+        
+        exams_with_priority = []
+        for exam in exams:
+            try:
+                exam_date = datetime.strptime(exam['date'], "%d-%m-%Y").date()
+                days_until = (exam_date - today).days
+                
+                # Calculate priority score
+                # Higher score = higher priority (more urgent)
+                # Factors: low prep (100 - prep), less time (urgency multiplier)
+                prep_gap = 100 - exam['prep']  # How much you still need to prepare
+                
+                # Urgency multiplier based on days remaining
+                if days_until <= 0:
+                    urgency = 10  # Overdue/today - maximum urgency
+                elif days_until <= 3:
+                    urgency = 5  # Very urgent (3 days or less)
+                elif days_until <= 7:
+                    urgency = 3  # Urgent (1 week)
+                elif days_until <= 14:
+                    urgency = 2  # Moderate (2 weeks)
+                else:
+                    urgency = 1  # Low urgency (more than 2 weeks)
+                
+                # Priority score: prep_gap * urgency
+                # An exam with 0% prep and 3 days left gets 100 * 5 = 500
+                # An exam with 80% prep and 3 days left gets 20 * 5 = 100
+                priority_score = prep_gap * urgency
+                
+                exams_with_priority.append({
+                    **exam,
+                    'days_until': days_until,
+                    'priority_score': priority_score,
+                    'urgency_level': urgency
+                })
+            except ValueError:
+                # Skip exams with invalid dates
+                continue
+        
+        # Sort by priority score (descending) - highest priority first
+        exams_with_priority.sort(key=lambda x: x['priority_score'], reverse=True)
+        return exams_with_priority

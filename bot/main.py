@@ -20,9 +20,18 @@ store = ExamStore()
 
 @bot.event
 async def on_ready():
-    await tree.sync()
+    # For faster testing, sync to a specific guild first
+    # Replace with your server ID or set GUILD_ID in .env for instant sync
+    guild_id = os.getenv("GUILD_ID")
+    if guild_id:
+        guild = discord.Object(id=int(guild_id))
+        await tree.sync(guild=guild)
+        print(f"Slash commands synced to guild {guild_id}!")
+    else:
+        await tree.sync()
+        print("Slash commands synced globally (may take up to 1 hour)")
+    
     print(f"Logged in as {bot.user}")
-    print("Slash commands synced!")
 
 
 
@@ -116,6 +125,64 @@ async def remove(interaction: discord.Interaction, position: int):
     )
     embed.set_footer(text=f"Removed by {interaction.user.name}")
     await interaction.response.send_message(embed=embed)
+
+@tree.command(name="plan", description="View your study plan with exams prioritized by urgency")
+async def plan(interaction: discord.Interaction):
+    user_id = interaction.user.id
+    exams = store.get_priority_queue(user_id)
+    
+    if exams:
+        embed = discord.Embed(
+            title="📋 Your Priority Study Plan",
+            description=f"Exams sorted by priority (urgency + preparation level)",
+            color=discord.Color.purple()
+        )
+        
+        for index, exam in enumerate(exams, start=1):
+            # Create a progress bar
+            prep = exam['prep']
+            filled = int(prep / 10)
+            bar = "🟩" * filled + "⬜" * (10 - filled)
+            
+            # Urgency emoji based on days until exam
+            days_until = exam['days_until']
+            if days_until <= 0:
+                urgency_emoji = "🔴"
+                urgency_text = "OVERDUE" if days_until < 0 else "TODAY"
+            elif days_until <= 3:
+                urgency_emoji = "🟠"
+                urgency_text = f"{days_until} day{'s' if days_until != 1 else ''} left"
+            elif days_until <= 7:
+                urgency_emoji = "🟡"
+                urgency_text = f"{days_until} days left"
+            else:
+                urgency_emoji = "🟢"
+                urgency_text = f"{days_until} days left"
+            
+            priority_score = exam['priority_score']
+            
+            field_value = (
+                f"📅 **Date:** {exam['date']} ({urgency_text})\n"
+                f"📊 **Progress:** {bar} {prep}%\n"
+                f"⚡ **Priority Score:** {priority_score:.0f}"
+            )
+            
+            embed.add_field(
+                name=f"{urgency_emoji} #{index} {exam['name']}", 
+                value=field_value, 
+                inline=False
+            )
+        
+        embed.set_footer(text=f"Focus on high-priority exams first! 💪")
+        await interaction.response.send_message(embed=embed)
+    else:
+        embed = discord.Embed(
+            title="📋 Your Priority Study Plan",
+            description="You don't have any exams scheduled yet.\n\nUse `/add` to add your first exam!",
+            color=discord.Color.greyple()
+        )
+        embed.set_footer(text=f"Requested by {interaction.user.name}")
+        await interaction.response.send_message(embed=embed)
 
 @tree.command(name="clear", description="Clear all your exams")
 async def clear(interaction: discord.Interaction):
